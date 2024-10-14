@@ -98,9 +98,9 @@ export const fetch = (
 
   // create a request
   return httpClient.request<Object>(req.method, req.url, {
-    observe: 'response',
+    observe: 'event' as const,
     responseType: 'json',
-    reportProgress: false,
+    reportProgress: true,
     ...bodyOrParams,
     ...req.options,
   });
