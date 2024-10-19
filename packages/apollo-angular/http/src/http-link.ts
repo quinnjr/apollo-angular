@@ -1,5 +1,5 @@
 import { print } from 'graphql';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpResponse } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import {
   ApolloLink,
@@ -57,6 +57,8 @@ export class HttpLinkHandler extends ApolloLink {
             withCredentials,
             useMultipart,
             headers: this.options.headers,
+            observe: context.observe,
+            reportProgress: context.reportProgress
           },
         };
 
@@ -75,7 +77,11 @@ export class HttpLinkHandler extends ApolloLink {
         const sub = fetch(req, this.httpClient, this.options.extractFiles).subscribe({
           next: response => {
             operation.setContext({ response });
-            observer.next(response.body);
+            if (response instanceof HttpResponse) {
+              observer.next(response.body);
+            } else {
+              observer.next(response);
+            }
           },
           error: err => observer.error(err),
           complete: () => observer.complete(),

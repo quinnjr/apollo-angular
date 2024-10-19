@@ -1,12 +1,21 @@
 import { Observable } from 'rxjs';
-import { HttpClient, HttpHeaders, HttpResponse } from '@angular/common/http';
-import { Body, ExtractedFiles, ExtractFiles, Request } from './types';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
+import {
+  Body,
+  Context,
+  ExtractedFiles,
+  ExtractFiles,
+  HttpRequestOptions,
+  Request,
+  HttpClientReturn
+} from './types';
 
 export const fetch = (
   req: Request,
   httpClient: HttpClient,
   extractFiles?: ExtractFiles,
-): Observable<HttpResponse<Object>> => {
+): Observable<HttpClientReturn> => {
+  const context: Context = req.options || {};
   const shouldUseBody = ['POST', 'PUT', 'PATCH'].indexOf(req.method.toUpperCase()) !== -1;
   const shouldStringify = (param: string) =>
     ['variables', 'extensions'].indexOf(param.toLowerCase()) !== -1;
@@ -96,14 +105,50 @@ export const fetch = (
     (bodyOrParams as any).body = form;
   }
 
-  // create a request
-  return httpClient.request<Object>(req.method, req.url, {
-    observe: 'response',
-    responseType: 'json',
-    reportProgress: false,
+  const baseOptions: HttpRequestOptions = {
+    reportProgress: context.reportProgress ?? false,
+    withCredentials: context.withCredentials,
     ...bodyOrParams,
-    ...req.options,
-  });
+    ...req.options
+  };
+  const observe = (context.observe as 'body' | 'events' | 'response') || 'response';
+  const responseType = (context.responseType as 'json' | 'arraybuffer' | 'blob' | 'text') || 'json';
+
+  // create a request
+  switch (observe) {
+    case 'body':
+      switch (responseType) {
+        case 'arraybuffer':
+          return httpClient.request(req.method, req.url, {
+            ...baseOptions,
+            observe: 'body',
+            responseType: 'arraybuffer'
+          });
+        case 'blob':
+          return httpClient.request(req.method, req.url, {
+            ...baseOptions,
+            observe: 'body',
+            responseType: 'blob'
+          });
+        case 'text':
+          return httpClient.request(req.method, req.url, {
+            ...baseOptions,
+            observe: 'body',
+            responseType: 'text'
+          });
+        default:
+          return httpClient.request(req.method, req.url, {
+            ...baseOptions,
+            observe: 'body',
+            responseType: 'json'
+          });
+      }
+    case 'events':
+      return httpClient.request(req.method, req.url, { ...baseOptions, observe: 'events', responseType})
+    case 'response':
+    default:
+      return httpClient.request(req.method, req.url, { ...baseOptions, observe: 'response', responseType})
+  }
 };
 
 export const mergeHeaders = (

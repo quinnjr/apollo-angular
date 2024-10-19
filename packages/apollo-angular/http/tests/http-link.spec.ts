@@ -1,6 +1,6 @@
 import { print, stripIgnoredCharacters } from 'graphql';
 import { mergeMap } from 'rxjs/operators';
-import { HttpClientModule, HttpHeaders } from '@angular/common/http';
+import { HttpClientModule, HttpHeaders, HttpResponse, HttpEvent } from '@angular/common/http';
 import { HttpClientTestingModule, HttpTestingController } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { ApolloLink, execute, gql, InMemoryCache } from '@apollo/client/core';
@@ -744,5 +744,57 @@ describe('HttpLink', () => {
       .unsubscribe();
 
     expect(httpBackend.expectOne('graphql').cancelled).toBe(true);
+  });
+
+   test('should support observe and reportProgress options from context', () => {
+    const link = httpLink.create({
+      uri: 'graphql',
+    });
+    const op = {
+      query: gql`
+        query heroes {
+          heroes {
+            name
+          }
+        }
+      `,
+      context: {
+        observe: 'events',
+        reportProgress: true,
+      },
+    };
+
+    let receivedResponse = false;
+
+    execute(link, op).subscribe({
+      next: (result: any) => {
+        if (result instanceof HttpResponse) {
+          receivedResponse = true;
+          expect(result.body.data).toBeDefined();
+        }
+      },
+      error: (error) => {
+        throw error;
+      },
+      complete: () => {
+        expect(receivedResponse).toBe(true);
+      },
+    });
+
+    const req = httpBackend.expectOne('graphql');
+
+    expect(req.request.reportProgress).toBe(true);
+
+    const responseEvent: HttpEvent<any> = new HttpResponse({
+      body: { data: { heroes: [{ name: 'Superman' }] } },
+      headers: req.request.headers,
+      status: 200,
+      statusText: 'OK',
+      url: req.request.url
+    });
+    req.event(responseEvent);
+
+    // Flush the response
+    req.flush({ data: { heroes: [{ name: 'Superman' }] } });
   });
 });
